@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using API.Dtos;
 using API.Errors;
+using API.Helpers;
 using AutoMapper;
 using Core.Entities;
 using Core.Interfaces;
@@ -31,11 +32,16 @@ namespace API.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IReadOnlyList<ProductToRetunDto>>> GetProducts()
+        public async Task<ActionResult<Pagination<ProductToRetunDto>>> GetProducts(
+            [FromQuery]ProductSpecParams productParams)
         {
-            var spec= new ProductsWithTypesAndBrandsSpecification();
+            var spec= new ProductsWithTypesAndBrandsSpecification(productParams);
             var products = await _productRepo.ListAsync(spec);
-            return Ok(_mapper.Map<IReadOnlyList<Product>,IReadOnlyList<ProductToRetunDto>>(products));
+            var countSpec= new ProductWithFiltersForCountSpecification(productParams);
+            var totalItems= await _productRepo.CountAsync(countSpec);
+            var data= _mapper.Map<IReadOnlyList<Product>,IReadOnlyList<ProductToRetunDto>>(products);
+            return Ok(new Pagination<ProductToRetunDto>(productParams.PageIndex,
+            productParams.PageSize,totalItems,data));
         }
 
         [HttpGet("{id}")]
@@ -43,15 +49,11 @@ namespace API.Controllers
         [ProducesResponseType(typeof(ApiResponse),StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ProductToRetunDto>> GetProduct(int id)
         {
-            Product product=null;
-            try{
             var spec= new ProductsWithTypesAndBrandsSpecification(id);
-            product = await _productRepo.GetEntitywithSpec(spec);
-            }
-            catch{
+            var product = await _productRepo.GetEntitywithSpec(spec);
+            //var test="";
             if(product==null) return NotFound(new ApiResponse(404));
-            }
-             return _mapper.Map<Product,ProductToRetunDto>(product);
+            return _mapper.Map<Product,ProductToRetunDto>(product);
         }
         [HttpGet("brands")]
         public async Task<ActionResult<IReadOnlyList<ProductBrand>>> GetProductBrands()
